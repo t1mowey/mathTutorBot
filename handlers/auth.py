@@ -26,7 +26,7 @@ async def start_handler(message: Message, state: FSMContext):
         await message.answer(f"✅ Привет, {user.name}! Ты тьютор.",
                              reply_markup=tutor_kb())
     elif role == 'student':
-        await message.answer(f"✅ Привет, {user.first_name}! Ты студент и лох.",
+        await message.answer(f"✅ Привет, {user.first_name}! Ты студент.",
                              reply_markup=student_kb())
     else:
         await message.answer(
