@@ -1,0 +1,79 @@
+from sqlalchemy import Column, Integer, BigInteger, String, ForeignKey, Table, Boolean
+from sqlalchemy.orm import relationship
+from conf import Base
+
+# Ассоциативная таблица many-to-many
+student_tutor_association = Table(
+    'student_tutor',
+    Base.metadata,
+    Column('student_id', Integer, ForeignKey('students.id')),
+    Column('tutor_id', Integer, ForeignKey('tutors.id'))
+)
+
+
+class ReprMixin:
+    def __repr__(self):
+        fields = []
+        for key in self.__table__.columns.keys():
+            value = getattr(self, key, None)
+            fields.append(f"{key}={value!r}")
+        return f"<{self.__class__.__name__}({', '.join(fields)})>"
+
+    def __str__(self):
+        # Можно вывести только самые важные поля (например, name или telegram_id)
+        important = [getattr(self, k, None) for k in ("first_name", "last_name", "telegram_id") if hasattr(self, k)]
+        label = " ".join(str(x) for x in important if x)
+        return f"{self.__class__.__name__}({label})"
+
+
+class Student(Base, ReprMixin):
+    __tablename__ = 'students'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)  # внутренний ID
+    telegram_id = Column(BigInteger, unique=True, nullable=False)
+    first_name = Column(String)
+    last_name = Column(String)
+    is_admin = Column(Boolean, default=False, nullable=False)
+    payed_lessons = Column(Integer, default=0, nullable=False)
+
+    tutors = relationship(
+        "Tutor",
+        secondary=student_tutor_association,
+        back_populates="students"
+    )
+
+
+class Tutor(Base, ReprMixin):
+    __tablename__ = 'tutors'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    telegram_id = Column(BigInteger, unique=True, nullable=False)
+    name = Column(String)
+    is_admin = Column(Boolean, default=False, nullable=False)
+
+    students = relationship(
+        "Student",
+        secondary=student_tutor_association,
+        back_populates="tutors"
+    )
+
+
+class Admin(Base, ReprMixin):
+    __tablename__ = 'admins'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    telegram_id = Column(BigInteger, unique=True, nullable=False)
+    name = Column(String)
+    is_admin = Column(Boolean, default=True, nullable=False)
+
+
+class RegistrationStack(Base, ReprMixin):
+    __tablename__ = 'stack'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String)
+    telegram_id = Column(BigInteger, unique=True, nullable=False)
+    fullname = Column(String)
+
+
+
+
+

@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Logs
+*.log
+
+# Environments
+.env
+.venv/
+env/
+venv/
+ENV/
+
+# PyCharm
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
