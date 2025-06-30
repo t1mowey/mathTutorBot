@@ -1,7 +1,10 @@
+name: Deploy MathTutorBot
+
 on:
   push:
-    branch:
-      - master
+    branches:
+      - main
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -17,10 +20,15 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            cd /home/timowey/SchoolBot
+            cd /home/timowey/mathTutorBot
+
             if [ ! -d ".git" ]; then
-              git clone https://github.com/t1mowey/SchoolBot.git .
+              git clone https://github.com/t1mowey/mathTutorBot.git .
             else
               git pull
             fi
-            sudo /bin/systemctl restart schoolbot
+
+            source .venv/bin/activate
+            pip install -r requirements.txt
+
+            sudo systemctl restart mathtutorbot

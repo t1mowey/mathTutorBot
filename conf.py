@@ -44,7 +44,7 @@ def setup_logger():
         filter=lambda record: record["level"].name != "ERROR",
         rotation="10 MB",
         retention="10 days",
-        encoding="utf-8",
+        encoding="cp1251",
         enqueue=True
     )
 
@@ -54,7 +54,7 @@ def setup_logger():
         filter=lambda record: record["level"].name != "ERROR",
         rotation="10 MB",
         retention="10 days",
-        encoding="utf-8",
+        encoding="cp1251",
         enqueue=True
     )
 
@@ -64,7 +64,7 @@ def setup_logger():
         level="ERROR",
         rotation="10 MB",
         retention="10 days",
-        encoding="utf-8",
+        encoding="cp1251",
         enqueue=True
     )
 
