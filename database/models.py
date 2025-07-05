@@ -36,11 +36,23 @@ class Student(Base, ReprMixin):
     is_admin = Column(Boolean, default=False, nullable=False)
     payed_lessons = Column(Integer, default=0, nullable=False)
 
+    parent_id = Column(Integer, ForeignKey('parents.id'), nullable=True)
+    parent = relationship("Parent", back_populates="students")
+
     tutors = relationship(
         "Tutor",
         secondary=student_tutor_association,
         back_populates="students"
     )
+
+
+class Parent(Base, ReprMixin):
+    __tablename__ = 'parents'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    telegram_id = Column(BigInteger, unique=True, nullable=False)
+    full_name = Column(String)
+    students = relationship('Student', back_populates='parent')
 
 
 class Tutor(Base, ReprMixin):

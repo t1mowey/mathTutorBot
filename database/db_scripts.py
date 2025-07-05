@@ -2,8 +2,11 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
+from sqlalchemy.inspection import inspect
 import asyncio
 from typing import List
+from PIL import Image, ImageDraw, ImageFont
+from typing import Type
 
 from conf import Base, engine, get_db
 from conf import logger
@@ -25,9 +28,30 @@ async def init_db():
             await conn.run_sync(Base.metadata.create_all)
             print("✅ Схема и таблицы успешно созданы")
             conn.close()
+
     except Exception as e:
         print("❌ Ошибка при создании таблиц:", e)
 
+    async with engine.begin() as conn:
+        await conn.execute(text("""
+            ALTER TABLE students ADD COLUMN IF NOT EXISTS parent_id INTEGER;
+        """))
+        await conn.execute(text("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.table_constraints
+                    WHERE constraint_name = 'fk_parent'
+                ) THEN
+                    ALTER TABLE students
+                    ADD CONSTRAINT fk_parent
+                    FOREIGN KEY (parent_id)
+                    REFERENCES parents(id)
+                    ON DELETE SET NULL;
+                END IF;
+            END
+            $$;
+        """))
 
 
 async def create_tutor(name: str, telegram_id: int):
@@ -163,6 +187,44 @@ async def delete_user(model, telegram_id: int, message):
 
         logger.info(f"{model.__tablename__} {telegram_id} удалён")
         await message.answer(f"✅ {telegram_id} успешно удалён из {model.__tablename__}")
+
+
+async def generate_table_image(model: Type, limit: int = 20, filename: str = "table_preview.png") -> str | None:
+    async with get_db() as session:
+        result = await session.execute(select(model).limit(limit))
+        objects = result.scalars().all()
+
+        if not objects:
+            return None
+
+        columns = [c.name for c in inspect(model).columns]
+        rows = [columns]
+
+        for obj in objects:
+            row = [str(getattr(obj, col, "")) for col in columns]
+            rows.append(row)
+
+        # Расчёт размеров
+        font = ImageFont.truetype("arial.ttf", size=14)
+        row_height = 20
+        col_widths = [max(len(row[i]) for row in rows) * 10 for i in range(len(columns))]
+
+        img_width = sum(col_widths) + 20
+        img_height = row_height * len(rows) + 20
+
+        image = Image.new("RGB", (img_width, img_height), "white")
+        draw = ImageDraw.Draw(image)
+
+        y = 10
+        for row in rows:
+            x = 10
+            for i, cell in enumerate(row):
+                draw.text((x, y), cell, fill="black", font=font)
+                x += col_widths[i]
+            y += row_height
+
+        image.save(filename)
+        return filename
 
 
 
