@@ -110,7 +110,7 @@ async def enter_user_data(message: Message, state: FSMContext):
 async def send_students_image(message: Message):
     model_name = message.text.split('_')[2]
     model = ROLE_MODEL_MAP_ENG[model_name]
-    filename = await generate_table_image(model, limit=10)
+    filename = await generate_table_image(model, limit=30)
     if filename:
         await message.answer_photo(FSInputFile(filename))
     else:
