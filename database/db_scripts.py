@@ -8,7 +8,7 @@ from typing import List
 from PIL import Image, ImageDraw, ImageFont
 from typing import Type
 
-from conf import Base, engine, get_db
+from conf import Base, engine, get_db, font
 from conf import logger
 from database.models import Student, Tutor, Admin, RegistrationStack
 import database.models
@@ -205,7 +205,7 @@ async def generate_table_image(model: Type, limit: int = 20, filename: str = "ta
             rows.append(row)
 
         # Расчёт размеров
-        font = ImageFont.truetype("arial.ttf", size=14)
+        font = ImageFont.truetype(font, size=14)
         row_height = 20
         col_widths = [max(len(row[i]) for row in rows) * 10 for i in range(len(columns))]
 

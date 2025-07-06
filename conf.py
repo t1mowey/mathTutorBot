@@ -23,6 +23,8 @@ DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT
 engine = create_async_engine(DATABASE_URL, echo=False)
 SessionLocal = async_sessionmaker(bind=engine, expire_on_commit=False)
 
+font = os.get_env('FONT')
+
 
 @asynccontextmanager
 async def get_db() -> AsyncSession:
