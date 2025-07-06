@@ -37,7 +37,7 @@ def get_keyboard(students, selected_ids):
         is_selected = student.telegram_id in selected_ids
         emoji = "✅" if is_selected else "☐"
         builder.button(
-            text=f"{emoji} {student.first_name}",
+            text=f"{emoji} {student.name}",
             callback_data=StudentCallback(telegram_id=student.telegram_id).pack()
         )
     builder.button(text="Готово", callback_data="done")

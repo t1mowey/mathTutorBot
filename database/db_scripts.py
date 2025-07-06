@@ -57,38 +57,13 @@ async def init_db():
         """))
 
 
-async def create_tutor(name: str, telegram_id: int):
-    """
-    Создаёт нового куратора с указанным именем и telegram_id.
-    Если указанный telegram_id уже существует, возбуждает ValueError.
-    Возвращает созданный объект Tutor.
-    """
+async def add_stack(telegram_id: int, name: str):
     async with get_db() as db:
-        # проверим, нет ли уже куратора с таким telegram_id
-        result = await db.execute(select(Tutor).where(Tutor.telegram_id == telegram_id))
-        if result.scalars().first():
-            raise ValueError(f"Tutor with telegram_id={telegram_id} already exists")
-
-        tutor = Tutor(name=name, telegram_id=telegram_id)
-        db.add(tutor)
-        try:
-            await db.commit()
-        except IntegrityError as e:
-            await db.rollback()
-            # на всякий случай отлавливаем другие нарушения уникальности
-            raise ValueError("Failed to create tutor, maybe duplicate telegram_id") from e
-
-        # обновим поля из БД (например, чтобы получить сгенерированный id)
-        await db.refresh(tutor)
-        return tutor
-
-
-async def add_stack(username: str, telegram_id: int, fullname: str):
-    async with get_db() as db:
-        await db.execute(select(RegistrationStack).filter(RegistrationStack.telegram_id == telegram_id))
-        if db:
+        exist = (await db.execute(select(RegistrationStack).filter(RegistrationStack.telegram_id == telegram_id))).scalars().first()
+        if exist:
+            print('exist')
             return
-        user_to_stack = RegistrationStack(username=username, telegram_id=telegram_id)
+        user_to_stack = RegistrationStack(name=name, telegram_id=telegram_id)
         db.add(user_to_stack)
         try:
             await db.commit()
@@ -131,7 +106,7 @@ async def decrease_student_credit(students_ids: List[int], tutor_id: int):
                       ).scalars().first().name
         for student in students:
             student.payed_lessons -= 1
-        student_names = [student.first_name for student in students]
+        student_names = [student.name for student in students]
         await db.commit()
     return student_names, tutor_name
 
@@ -158,7 +133,7 @@ ROLE_MODEL_MAP_ENG = {
 }
 
 
-async def add_user(instance: Student | Tutor | Admin) -> tuple[bool, str]:
+async def add_user(instance: Student | Parent | Tutor | Admin) -> tuple[bool, str]:
     async with get_db() as db:
         try:
             db.add(instance)
@@ -250,7 +225,7 @@ async def get_students_lessons_by_parent(parent_telegram_id: int):
         for student in parent.students:  # один-ко-многим
             students_info.append({
                 "id": student.id,
-                "full_name": f"{student.first_name} {student.last_name}",
+                "name": f"{student.name}",
                 "payed_lessons": student.payed_lessons
             })
 

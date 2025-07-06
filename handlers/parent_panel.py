@@ -44,13 +44,13 @@ async def handle_payment_check(msg: Message):
 
     for s in students_info:
         student_id = s['id']
-        full_name = s['full_name']
-        text += f"{full_name}: {s['payed_lessons']} занятий\n"
+        name = s['name']
+        text += f"{name}: {s['payed_lessons']} занятий\n"
 
         kb.inline_keyboard.append([
             InlineKeyboardButton(
-                text=f"💳 Оплатить — {s['full_name']}",
-                callback_data=f"pay_student_{student_id}_{full_name}"
+                text=f"💳 Оплатить — {s['name']}",
+                callback_data=f"pay_student_{student_id}_{name}"
             )
         ])
 
@@ -59,9 +59,9 @@ async def handle_payment_check(msg: Message):
 
 @parent_router.callback_query(F.data.startswith("pay_student_"))
 async def handle_pay_student_callback(callback: CallbackQuery, state: FSMContext):
-    student_id, full_name = callback.data.replace("pay_student_", "").split('_', 1)
+    student_id, name = callback.data.replace("pay_student_", "").split('_', 1)
     student_id = int(student_id)
-    await state.update_data(student_id=student_id, student_name=full_name)
+    await state.update_data(student_id=student_id, student_name=name)
 
     await callback.message.answer("Сколько занятий вы хотите оплатить?")
     await state.set_state(PaymentStates.waiting_for_lesson_count)
@@ -90,7 +90,7 @@ async def handle_payment_screenshot(msg: Message, state: FSMContext):
     student_name = data.get("student_name")
     lesson_count = data.get("lesson_count")
     parent_tg_id = msg.from_user.id
-    parent_name = (await get_parent_by_id(parent_tg_id)).full_name
+    parent_name = (await get_parent_by_id(parent_tg_id)).name
 
     if not msg.photo:
         await msg.answer("Пожалуйста, пришлите изображение.")

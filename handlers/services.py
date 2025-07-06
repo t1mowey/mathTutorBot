@@ -44,6 +44,11 @@ class AddTutorStates(StatesGroup):
     waiting_for_telegram_id = State()
 
 
+class AssignRoleState(StatesGroup):
+    choosing_user = State()
+    choosing_role = State()
+
+
 class RegistrationState(StatesGroup):
     waiting_for_name = State()
 
@@ -107,13 +112,13 @@ async def save_user_image(message: Message):
     return file_path
 
 
-def logging(func):
-    @wraps(func)
-    async def wrapper(message, *args, **kwargs):
-        logger.info(f"User {message.from_user.full_name} sent: {message.text}")
-        try:
-            return await func(message, *args, **kwargs)
-        except Exception as e:
-            logger.exception(f"Handler {func.__name__} failed: {e}")
-            raise
-    return wrapper
+# def logging(func):
+#     @wraps(func)
+#     async def wrapper(message, *args, **kwargs):
+#         logger.info(f"User {message.from_user.full_name} sent: {message.text}")
+#         try:
+#             return await func(message, *args, **kwargs)
+#         except Exception as e:
+#             logger.exception(f"Handler {func.__name__} failed: {e}")
+#             raise
+#     return wrapper

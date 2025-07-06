@@ -21,7 +21,7 @@ class ReprMixin:
 
     def __str__(self):
         # Можно вывести только самые важные поля (например, name или telegram_id)
-        important = [getattr(self, k, None) for k in ("first_name", "last_name", "telegram_id") if hasattr(self, k)]
+        important = [getattr(self, k, None) for k in ("name", "telegram_id") if hasattr(self, k)]
         label = " ".join(str(x) for x in important if x)
         return f"{self.__class__.__name__}({label})"
 
@@ -31,8 +31,7 @@ class Student(Base, ReprMixin):
 
     id = Column(Integer, primary_key=True, autoincrement=True)  # внутренний ID
     telegram_id = Column(BigInteger, unique=True, nullable=False)
-    first_name = Column(String)
-    last_name = Column(String)
+    name = Column(String)
     is_admin = Column(Boolean, default=False, nullable=False)
     payed_lessons = Column(Integer, default=0, nullable=False)
 
@@ -51,7 +50,7 @@ class Parent(Base, ReprMixin):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     telegram_id = Column(BigInteger, unique=True, nullable=False)
-    full_name = Column(String)
+    name = Column(String)
     students = relationship('Student', back_populates='parent', lazy="selectin")
 
 
@@ -81,7 +80,7 @@ class Admin(Base, ReprMixin):
 class RegistrationStack(Base, ReprMixin):
     __tablename__ = 'stack'
     id = Column(Integer, primary_key=True, autoincrement=True)
-    username = Column(String)
+    name = Column(String)
     telegram_id = Column(BigInteger, unique=True, nullable=False)
     fullname = Column(String)
 

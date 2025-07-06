@@ -6,8 +6,8 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from handlers.filters import IsAdminFilter
 from database.db_scripts import get_unregistered_users, get_model_fields, ROLE_MODEL_MAP_RU, add_user, delete_user, \
-    get_unchecked_payments, approve_payment, get_pending_payment_by_id, mark_payment_as_checked
-from handlers.services import CreateUserStates
+    get_unchecked_payments, approve_payment, get_pending_payment_by_id, mark_payment_as_checked, ROLE_MODEL_MAP_ENG
+from handlers.services import CreateUserStates, AssignRoleState
 from conf import logger
 from handlers.services import parse_auto_type
 
@@ -28,59 +28,92 @@ def admin_kb() -> ReplyKeyboardMarkup:
     )
 
 
-# Tutor add logic
-@admin_router.message(F.text == "➕ Добавить преподавателя")
-async def show_unregistered_users(message: Message):
+@admin_router.message(F.text == "➕ Добавить пользователя")
+async def start_assign_role(message: Message, state: FSMContext):
     users = await get_unregistered_users()
     if not users:
-        await message.answer("Нет новых пользователей")
+        await message.answer("Нет новых пользователей.")
         return
+
     kb_builder = InlineKeyboardBuilder()
     for user in users:
         kb_builder.add(
             InlineKeyboardButton(
-                text=f"{user.username} (ID: {user.telegram_id})",
-                callback_data=f"assign_role:{user.username}:{user.telegram_id}"
+                text=f"{user.name} (ID: {user.telegram_id})",
+                callback_data=f"select_user:{user.telegram_id}"
             )
         )
+
+    await state.set_state(AssignRoleState.choosing_user)
     await message.answer("Выбери пользователя для назначения роли:",
                          reply_markup=kb_builder.as_markup())
 
+# --- Шаг 2: выбор пользователя, сохранение в state ---
+@admin_router.callback_query(AssignRoleState.choosing_user, F.data.startswith("select_user:"))
+async def process_user_selected(callback: CallbackQuery, state: FSMContext):
+    telegram_id = int(callback.data.split(":")[1])
+    users = await get_unregistered_users()
 
-@admin_router.callback_query(F.data.startswith("assign_role:"))
-async def choose_role(callback: CallbackQuery):
-    username = callback.data.split(":")[1]
-    telegram_id = callback.data.split(":")[2]
+    # Находим юзера по telegram_id из уже загруженных
+    user = next((u for u in users if u.telegram_id == telegram_id), None)
+    if not user:
+        await callback.message.answer("❌ Пользователь не найден.")
+        await callback.answer()
+        return
+
+    await state.update_data(telegram_id=telegram_id, name=user.name)
+    await state.set_state(AssignRoleState.choosing_role)
 
     kb_builder = InlineKeyboardBuilder()
-    for role in ["student", "tutor"]:
+    for role in ["Student", "Parent", "Tutor", "Admin"]:
         kb_builder.add(
             InlineKeyboardButton(
                 text=role.capitalize(),
-                callback_data=f"set_role:{telegram_id}:{role}"
+                callback_data=f"select_role:{role}"
             )
         )
-    await callback.message.delete()
-    await callback.message.answer(
-        f"Выбери роль для пользователя {username}:",
+
+    await callback.message.edit_text(
+        f"Выбери роль для пользователя {user.name}:",
         reply_markup=kb_builder.as_markup()
     )
     await callback.answer()
 
+# --- Шаг 3: выбор роли, создание юзера ---
+@admin_router.callback_query(AssignRoleState.choosing_role, F.data.startswith("select_role:"))
+async def process_role_selected(callback: CallbackQuery, state: FSMContext):
+    role = callback.data.split(":")[1]
+    data = await state.get_data()
+    await state.clear()
 
-@admin_router.callback_query(F.data.startswith("set_role:"))
-async def set_user_role(callback: CallbackQuery):
-    _, telegram_id, role = callback.data.split(":")
+    telegram_id = data["telegram_id"]
+    name = data["name"]
 
-    # TODO: ТУТ ТЫ ЗАПИСЫВАЕШЬ В БД, ЧТО ТАКОМУ telegram_id ПРИСВОЕНА РОЛЬ
-    # например, вызовешь create_user_with_role(telegram_id, role)
+    model_class = ROLE_MODEL_MAP_ENG.get(role)
+    if not model_class:
+        print(f"[ERROR] Неизвестная роль: {role}")
+        await callback.message.answer("❌ Ошибка: неизвестная роль.")
+        await callback.answer()
+        return
 
-    print(f"Назначить роль '{role}' пользователю с ID {telegram_id}")
-    # await create_user_with_role(int(telegram_id), role)
+    try:
+        instance = model_class(telegram_id=telegram_id, name=name)
+        print(f"[INFO] Создан экземпляр {model_class.__name__} для {telegram_id} ({name})")
+    except Exception as e:
+        print(f"[ERROR] Не удалось создать экземпляр {model_class.__name__}: {e}")
+        await callback.message.answer("❌ Ошибка при создании пользователя.")
+        await callback.answer()
+        return
 
-    await callback.message.answer(
-        f"✅ Пользователю с ID {telegram_id} назначена роль '{role}'."
-    )
+    success, message = await add_user(instance)
+
+    if success:
+        print(f"[OK] Роль '{role}' назначена пользователю {telegram_id}")
+        await callback.message.edit_text(f"✅ Пользователю {name} назначена роль '{role}'.")
+    else:
+        print(f"[FAIL] Не удалось добавить пользователя {telegram_id}: {message}")
+        await callback.message.answer("❌ Не удалось назначить роль.")
+
     await callback.answer()
 
 
@@ -92,8 +125,8 @@ async def send_current_payment(msg_or_cb, payment_id: int):
 
     await mark_payment_as_checked(payment_id)
     text = (
-        f"🧾 Родитель ID: ```{payment.parent_id}```\n"
-        f"👦 Родитель: {payment.parent_name}"
+        f"🧾 Родитель ID: {payment.parent_id}\n"
+        f"👦 Родитель: {payment.parent_name}\n"
         f"👦 Ученик: {payment.student_name}\n"
         f"📚 Оплачено занятий: {payment.lessons}\n"
         f"🕒 Дата: {payment.created_at.strftime('%d.%m.%Y %H:%M')}"

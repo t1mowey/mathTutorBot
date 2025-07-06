@@ -27,10 +27,10 @@ async def start_handler(message: Message, state: FSMContext):
         await message.answer(f"✅ Привет, {user.name}! Ты тьютор.",
                              reply_markup=tutor_kb())
     elif role == 'student':
-        await message.answer(f"✅ Привет, {user.first_name}! Ты студент.",
+        await message.answer(f"✅ Привет, {user.name}! Ты студент.",
                              reply_markup=student_kb())
     elif role == 'parent':
-        await message.answer(f"✅ Здравствуйте, {user.full_name}! вы родитель.",
+        await message.answer(f"✅ Здравствуйте, {user.name}! вы родитель.",
                              reply_markup=parent_kb())
     else:
         await message.answer(
@@ -42,12 +42,11 @@ async def start_handler(message: Message, state: FSMContext):
 
 @auth.message(RegistrationState.waiting_for_name)
 async def process_name(message: Message, state: FSMContext):
-    fullname = message.text.strip()
+    name = message.text.strip()
     telegram_id = message.from_user.id
-    username = message.from_user.full_name
 
     # Добавляем в stack
-    await add_stack(username=username, telegram_id=telegram_id, fullname=fullname)
+    await add_stack(telegram_id=telegram_id, name=name)
 
     # Отвечаем пользователю
     await message.answer(
