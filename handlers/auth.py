@@ -7,6 +7,7 @@ from aiogram.fsm.context import FSMContext
 from handlers.admin_panel import admin_kb
 from handlers.tutor_panel import tutor_kb
 from handlers.student_panel import student_kb
+from handlers.parent_panel import parent_kb
 from handlers.services import get_role
 from database.db_scripts import add_stack
 from handlers.services import RegistrationState
@@ -28,6 +29,9 @@ async def start_handler(message: Message, state: FSMContext):
     elif role == 'student':
         await message.answer(f"✅ Привет, {user.first_name}! Ты студент.",
                              reply_markup=student_kb())
+    elif role == 'parent':
+        await message.answer(f"✅ Здравствуйте, {user.full_name}! вы родитель.",
+                             reply_markup=parent_kb())
     else:
         await message.answer(
             "📝 Пожалуйста, введите свою Фамилию и Имя (например: Иванов Иван):",

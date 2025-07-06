@@ -3,7 +3,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, FSInputFile
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
-from database.db_scripts import ROLE_MODEL_MAP, add_user, delete_user, get_model_fields, generate_table_image
+from database.db_scripts import ROLE_MODEL_MAP_RU, ROLE_MODEL_MAP_ENG, add_user, delete_user, get_model_fields, generate_table_image
 from handlers.services import CreateUserStates, parse_auto_type
 from conf import logger
 from database.models import Student
@@ -19,11 +19,11 @@ async def delete_user_direct(message: Message):
             return await message.answer("❌ Используй формат: /delete_user <role> <telegram_id>")
 
         _, role, tid = parts
-        if role not in ROLE_MODEL_MAP:
-            return await message.answer(f"❌ Роль {role} не распознана. Возможные: {', '.join(ROLE_MODEL_MAP)}")
+        if role not in ROLE_MODEL_MAP_RU:
+            return await message.answer(f"❌ Роль {role} не распознана. Возможные: {', '.join(ROLE_MODEL_MAP_RU)}")
 
         telegram_id = int(tid)
-        model = ROLE_MODEL_MAP[role]
+        model = ROLE_MODEL_MAP_RU[role]
 
         await delete_user(model, telegram_id, message)
 
@@ -37,6 +37,7 @@ async def start_create_user(message: Message, state: FSMContext):
     await message.answer("Выбери роль нового пользователя:", reply_markup=ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text="Ученик")],
+            [KeyboardButton(text="Родитель")],
             [KeyboardButton(text="Преподаватель")],
             [KeyboardButton(text="Администратор")]
                   ],
@@ -46,12 +47,12 @@ async def start_create_user(message: Message, state: FSMContext):
     await state.set_state(CreateUserStates.choosing_role)
 
 
-@dev_router.message(CreateUserStates.choosing_role, F.text.in_(ROLE_MODEL_MAP.keys()))
+@dev_router.message(CreateUserStates.choosing_role, F.text.in_(ROLE_MODEL_MAP_RU.keys()))
 async def get_role(message: Message, state: FSMContext):
     role = message.text
     await state.update_data(role=role)
 
-    model = ROLE_MODEL_MAP[role]
+    model = ROLE_MODEL_MAP_RU[role]
     fields = await get_model_fields(model)
     await state.update_data(fields=fields)
 
@@ -63,9 +64,53 @@ async def get_role(message: Message, state: FSMContext):
     await state.set_state(CreateUserStates.entering_data)
 
 
+@dev_router.message(CreateUserStates.entering_data)
+async def enter_user_data(message: Message, state: FSMContext):
+    data = await state.get_data()
+    role = data["role"]
+    fields = data["fields"]
+    values = [v.strip() for v in message.text.split(", ")]
+
+    if len(values) != len(fields):
+        return await message.answer(
+            f"❌ Неверное количество значений. Ожидалось: {len(fields)}, получено: {len(values)}."
+        )
+
+    model_cls = ROLE_MODEL_MAP_RU[role]
+
+    try:
+        # Преобразуем значения и собираем в словарь
+        parsed_data = {
+            field: await parse_auto_type(value)
+            for field, value in zip(fields, values)
+        }
+
+        # Создаём экземпляр модели
+        instance = model_cls(**parsed_data)
+
+        # Сохраняем в БД
+        success, msg = await add_user(instance)
+
+        if success:
+            await message.answer(f"✅ Пользователь роли '{role}' успешно добавлен.")
+        else:
+            await message.answer(f"❌ {msg}")
+
+    except Exception as e:
+        logger.exception("Ошибка при создании пользователя")
+        await message.answer(f"❌ Ошибка при создании пользователя: {e}")
+
+    await state.clear()
+
+
+
+
+
 @dev_router.message(F.text.startswith("/show_db"))
 async def send_students_image(message: Message):
-    filename = await generate_table_image(Student, limit=10)
+    model_name = message.text.split('_')[2]
+    model = ROLE_MODEL_MAP_ENG[model_name]
+    filename = await generate_table_image(model, limit=10)
     if filename:
         await message.answer_photo(FSInputFile(filename))
     else:

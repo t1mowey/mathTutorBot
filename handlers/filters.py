@@ -23,3 +23,9 @@ class IsStudentFilter(BaseFilter):
         return role == 'student'
 
 
+class IsParentFilter(BaseFilter):
+    async def __call__(self, message: Message):
+        role, _, is_admin = await get_role(message)
+        return role == 'parent'
+
+

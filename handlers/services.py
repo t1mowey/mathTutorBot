@@ -1,4 +1,7 @@
+from datetime import datetime
 from functools import wraps
+from pathlib import Path
+
 from loguru import logger
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.state import StatesGroup, State
@@ -7,7 +10,7 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.filters import StateFilter
 
 from conf import get_db
-from database.models import Admin, Tutor, Student
+from database.models import Admin, Tutor, Student, Parent
 
 
 async def get_role(message: Message):
@@ -28,7 +31,12 @@ async def get_role(message: Message):
         if student:
             return 'student', student, student.is_admin
 
-        return 'unknown', None, None
+        result = await db.execute(select(Parent).where(Parent.telegram_id == message.from_user.id))
+        parent = result.scalars().first()
+        if parent:
+            return 'parent', parent, False
+
+        return 'unknown', None, False
 
 
 class AddTutorStates(StatesGroup):
@@ -45,7 +53,12 @@ class CreateUserStates(StatesGroup):
     entering_data = State()
 
 
-def parse_auto_type(value: str):
+class PaymentStates(StatesGroup):
+    waiting_for_lesson_count = State()
+    waiting_for_screenshot = State()
+
+
+async def parse_auto_type(value: str):
     val = value.strip()
 
     # Bool
@@ -69,6 +82,29 @@ def parse_auto_type(value: str):
     # Вернуть как строку
     return val
 
+
+async def save_user_image(message: Message):
+    user_id = message.from_user.id
+
+    # 1. Получаем файл
+    if not message.photo:
+        return await message.answer("Пришли фото.")
+    file = message.photo[-1]  # самое большое изображение
+    tg_file = await message.bot.get_file(file.file_id)
+
+    # 2. Создаём папку пользователя
+    user_dir = Path(f"uploads/{user_id}")
+    user_dir.mkdir(parents=True, exist_ok=True)
+
+    # 3. Формируем имя файла
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    file_name = f"{timestamp}.jpg"
+    file_path = user_dir / file_name
+
+    # 4. Сохраняем файл
+    await message.bot.download_file(tg_file.file_path, destination=file_path)
+
+    return file_path
 
 
 def logging(func):

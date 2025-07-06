@@ -1,4 +1,7 @@
+from aiogram.types import Message
 from sqlalchemy import text
+from sqlalchemy.dialects.postgresql import insert
+
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -8,10 +11,10 @@ from typing import List
 from PIL import Image, ImageDraw, ImageFont
 from typing import Type
 
-from conf import Base, engine, get_db, font
-from conf import logger
-from database.models import Student, Tutor, Admin, RegistrationStack
+from conf import Base, engine, get_db, font, logger
+from database.models import Student, Parent, Tutor, Admin, RegistrationStack, PendingPayment
 import database.models
+from handlers.services import save_user_image
 
 
 async def init_db():
@@ -125,7 +128,7 @@ async def decrease_student_credit(students_ids: List[int], tutor_id: int):
         tutor_name = (await db.execute(
             select(Tutor).filter(Tutor.telegram_id == tutor_id)
         )
-                    ).scalars().first().name
+                      ).scalars().first().name
         for student in students:
             student.payed_lessons -= 1
         student_names = [student.first_name for student in students]
@@ -140,10 +143,18 @@ async def get_model_fields(model_class):
     ]
 
 
-ROLE_MODEL_MAP = {
+ROLE_MODEL_MAP_RU = {
     "Ученик": Student,
+    "Родитель": Parent,
     "Преподаватель": Tutor,
     "Администратор": Admin
+}
+
+ROLE_MODEL_MAP_ENG = {
+    "Student": Student,
+    "Parent": Parent,
+    "Tutor": Tutor,
+    "Admin": Admin
 }
 
 
@@ -158,8 +169,6 @@ async def add_user(instance: Student | Tutor | Admin) -> tuple[bool, str]:
             logger.exception("Ошибка при сохранении в БД")
             return False, f"Ошибка: {e}"
 
-
-from sqlalchemy.orm import selectinload
 
 async def delete_user(model, telegram_id: int, message):
     async with get_db() as db:
@@ -205,7 +214,7 @@ async def generate_table_image(model: Type, limit: int = 20, filename: str = "ta
             rows.append(row)
 
         # Расчёт размеров
-        font = ImageFont.truetype(font, size=14)
+        font_im = ImageFont.truetype(font, size=14)
         row_height = 20
         col_widths = [max(len(row[i]) for row in rows) * 10 for i in range(len(columns))]
 
@@ -219,13 +228,106 @@ async def generate_table_image(model: Type, limit: int = 20, filename: str = "ta
         for row in rows:
             x = 10
             for i, cell in enumerate(row):
-                draw.text((x, y), cell, fill="black", font=font)
+                draw.text((x, y), cell, fill="black", font=font_im)
                 x += col_widths[i]
             y += row_height
 
         image.save(filename)
         return filename
 
+
+async def get_students_lessons_by_parent(parent_telegram_id: int):
+    async with get_db() as session:
+        result = await session.execute(
+            select(Parent).where(Parent.telegram_id == parent_telegram_id)
+        )
+        parent = result.scalars().first()
+        if not parent:
+            return []
+
+        await session.refresh(parent)  # подтягиваем связь
+        students_info = []
+        for student in parent.students:  # один-ко-многим
+            students_info.append({
+                "id": student.id,
+                "full_name": f"{student.first_name} {student.last_name}",
+                "payed_lessons": student.payed_lessons
+            })
+
+        return students_info
+
+
+async def create_pending_payment(
+    message: Message,
+    parent_id: int,
+    parent_name: str,
+    student_id: int,
+    student_name: str,
+    lessons: int
+):
+    # Сохраняем файл и получаем путь
+    file_path = await save_user_image(message)
+
+    # Записываем в базу
+    async with get_db() as db:
+        stmt = insert(PendingPayment).values(
+            parent_id=parent_id,
+            parent_name=parent_name,
+            student_id=student_id,
+            student_name=student_name,
+            lessons=lessons,
+            file_path=str(file_path)
+        )
+        await db.execute(stmt)
+        await db.commit()
+
+
+async def get_unchecked_payments():
+    async with get_db() as db:
+        result = await db.execute(
+            select(PendingPayment).where(PendingPayment.is_approved.is_not(True))
+        )
+        return result.scalars().all()
+
+
+async def get_pending_payment_by_id(payment_id: int):
+    async with get_db() as db:
+        payment = await db.get(PendingPayment, payment_id)
+        if payment is None:
+            return False
+        return payment
+
+
+async def get_parent_by_id(telegram_id):
+    async with get_db() as db:
+        parent = (await db.execute(select(Parent).where(Parent.telegram_id == telegram_id))).scalars().first()
+        if parent is None:
+            return False
+        return parent
+
+
+async def mark_payment_as_checked(payment_id: int):
+    async with get_db() as db:
+        payment = (await db.execute(select(PendingPayment).where(PendingPayment.id == payment_id))).scalars().first()
+        if payment:
+            payment.is_checked = True
+            await db.commit()
+            logger.info(f"Платёж с ID {payment_id} просмотрен")
+
+
+async def approve_payment(payment_id: int, approver_id: int, approver_name: str):
+
+    async with get_db() as db:
+        payment = await db.get(PendingPayment, payment_id)
+        if payment is None:
+            return False
+
+        payment.approved_by_admin_id = approver_id
+        payment.approved_by_admin_name = approver_name
+        payment.is_approved = True  # предположим, у тебя есть это поле
+        await db.commit()
+        logger.info(f"Платёж с ID {payment_id} подтверждён админом {approver_name} (ID: {approver_id})")
+        return True
 
 
 if __name__ == "__main__":

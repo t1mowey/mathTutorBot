@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, BigInteger, String, ForeignKey, Table, Boolean
+from sqlalchemy import Column, Integer, BigInteger, String, ForeignKey, Table, Boolean, DateTime, func
 from sqlalchemy.orm import relationship
 from conf import Base
 
@@ -52,7 +52,7 @@ class Parent(Base, ReprMixin):
     id = Column(Integer, primary_key=True, autoincrement=True)
     telegram_id = Column(BigInteger, unique=True, nullable=False)
     full_name = Column(String)
-    students = relationship('Student', back_populates='parent')
+    students = relationship('Student', back_populates='parent', lazy="selectin")
 
 
 class Tutor(Base, ReprMixin):
@@ -84,6 +84,24 @@ class RegistrationStack(Base, ReprMixin):
     username = Column(String)
     telegram_id = Column(BigInteger, unique=True, nullable=False)
     fullname = Column(String)
+
+
+class PendingPayment(Base):
+    __tablename__ = "pending_payments"
+
+    id = Column(Integer, primary_key=True)
+    parent_id = Column(BigInteger, nullable=False)
+    parent_name = Column(String, nullable=False)
+    student_id = Column(BigInteger, nullable=False)
+    student_name = Column(String, nullable=False)
+    lessons = Column(Integer, nullable=False)
+    file_path = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    is_checked = Column(Boolean, default=False)
+    is_approved = Column(Boolean, nullable=True)
+    approved_by_admin_id = Column(BigInteger, nullable=True)
+    approved_by_admin_name = Column(String, nullable=True)
 
 
 
