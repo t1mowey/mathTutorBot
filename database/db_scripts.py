@@ -307,7 +307,6 @@ async def mark_payment_as_checked(payment_id: int):
 
 
 async def approve_payment(payment_id: int, approver_id: int, approver_name: str):
-
     async with get_db() as db:
         payment = await db.get(PendingPayment, payment_id)
         if payment is None:
@@ -316,22 +315,29 @@ async def approve_payment(payment_id: int, approver_id: int, approver_name: str)
         payment.approved_by_admin_id = approver_id
         payment.approved_by_admin_name = approver_name
         payment.is_approved = True
+
         student = (
-            await db.execute(select(Student).where(Student.telegram_id == payment.student_id))
+            await db.execute(select(Student).where(Student.id == payment.student_id))
         ).scalars().first()
+
         admin = (
             await db.execute(select(Admin).where(Admin.telegram_id == approver_id))
         ).scalars().first()
 
         if student is None or admin is None:
+            if student is None:
+                print(f"[ERROR] Student not found with telegram_id: {payment.student_id}")
+            if admin is None:
+                print(f"[ERROR] Admin not found with telegram_id: {approver_id}")
             return False, None, None
 
         student.payed_lessons += payment.lessons
 
         await db.commit()
-        logger.info(f"Платёж #{payment_id} подтверждён админом {approver_name} (ID {approver_id}); "
-                    f"{payment.lessons} уроков начислено студенту {student.name} (ID {student.telegram_id})")
+        print(f"[INFO] Платёж #{payment_id} подтверждён админом {approver_name} (ID {approver_id}); "
+              f"{payment.lessons} уроков начислено студенту {student.name} (ID {student.telegram_id})")
         return True, student.name, admin.name
+
 
 
 if __name__ == "__main__":
