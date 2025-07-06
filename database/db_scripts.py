@@ -111,6 +111,22 @@ async def decrease_student_credit(students_ids: List[int], tutor_id: int):
     return student_names, tutor_name
 
 
+async def increase_student_credit(students_id: int, admin_id: int, payed_lessons: int):
+    async with get_db() as db:
+        student = (await db.execute(
+            select(Student).filter(Student.telegram_id == students_id)
+        )
+                    ).scalars().first()
+        admin_name = (await db.execute(
+            select(Admin).filter(Admin.telegram_id == admin_id)
+        )
+                      ).scalars().first().name
+        student.payed_lessons += payed_lessons
+        student_name = student.name
+        await db.commit()
+    return student_name, admin_name
+
+
 async def get_model_fields(model_class):
     return [
         c.name for c in model_class.__table__.columns
@@ -295,14 +311,27 @@ async def approve_payment(payment_id: int, approver_id: int, approver_name: str)
     async with get_db() as db:
         payment = await db.get(PendingPayment, payment_id)
         if payment is None:
-            return False
+            return False, None, None
 
         payment.approved_by_admin_id = approver_id
         payment.approved_by_admin_name = approver_name
-        payment.is_approved = True  # предположим, у тебя есть это поле
+        payment.is_approved = True
+        student = (
+            await db.execute(select(Student).where(Student.telegram_id == payment.student_id))
+        ).scalars().first()
+        admin = (
+            await db.execute(select(Admin).where(Admin.telegram_id == approver_id))
+        ).scalars().first()
+
+        if student is None or admin is None:
+            return False, None, None
+
+        student.payed_lessons += payment.lessons
+
         await db.commit()
-        logger.info(f"Платёж с ID {payment_id} подтверждён админом {approver_name} (ID: {approver_id})")
-        return True
+        logger.info(f"Платёж #{payment_id} подтверждён админом {approver_name} (ID {approver_id}); "
+                    f"{payment.lessons} уроков начислено студенту {student.name} (ID {student.telegram_id})")
+        return True, student.name, admin.name
 
 
 if __name__ == "__main__":

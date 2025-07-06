@@ -194,9 +194,8 @@ async def stop_review(callback: CallbackQuery, state: FSMContext):
 async def approve_payment_handler(callback: CallbackQuery, state: FSMContext):
     payment_id = int(callback.data.split("_")[1])
     approver_id = callback.from_user.id
-    approver_name = callback.from_user.full_name
 
-    success = await approve_payment(payment_id, approver_id, approver_name)
+    success, student_name, approver_name = await approve_payment(payment_id, approver_id, approver_name)
     if not success:
         await callback.message.answer("❌ Не удалось подтвердить оплату. Возможно, она уже удалена.")
         await callback.answer()
