@@ -23,11 +23,14 @@ async def main():
     dp.include_router(student_router)
     dp.include_router(parent_router)
     dp.include_router(dev_router)
-    print('-'*60, 'READY')
     await bot.delete_webhook(drop_pending_updates=True)
+    print('Бот готов к использованию!✅')
     await dp.start_polling(bot)
 
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print('Бот отключён вручную')

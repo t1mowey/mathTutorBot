@@ -1,7 +1,7 @@
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, FSInputFile
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import Message, FSInputFile, ReplyKeyboardRemove, CallbackQuery
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
 from database.db_scripts import ROLE_MODEL_MAP_RU, ROLE_MODEL_MAP_ENG, add_user, delete_user, get_model_fields, generate_table_image
 from handlers.services import CreateUserStates, parse_auto_type
@@ -34,31 +34,29 @@ async def delete_user_direct(message: Message):
 
 @dev_router.message(F.text == "/create_user")
 async def start_create_user(message: Message, state: FSMContext):
-    await message.answer("Выбери роль нового пользователя:", reply_markup=ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="Ученик")],
-            [KeyboardButton(text="Родитель")],
-            [KeyboardButton(text="Преподаватель")],
-            [KeyboardButton(text="Администратор")]
-                  ],
-        resize_keyboard=True,
-        one_time_keyboard=True
+    await message.answer("Выбери роль нового пользователя:", reply_markup=InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Ученик", callback_data='Student')],
+            [InlineKeyboardButton(text="Родитель", callback_data='Parent')],
+            [InlineKeyboardButton(text="Преподаватель", callback_data='Tutor')],
+            [InlineKeyboardButton(text="Администратор", callback_data='Admin')]
+                  ]
     ))
     await state.set_state(CreateUserStates.choosing_role)
 
 
-@dev_router.message(CreateUserStates.choosing_role, F.text.in_(ROLE_MODEL_MAP_RU.keys()))
-async def get_role(message: Message, state: FSMContext):
-    role = message.text
+@dev_router.callback_query(CreateUserStates.choosing_role, F.data.in_(ROLE_MODEL_MAP_ENG.keys()))
+async def get_role(callback: CallbackQuery, state: FSMContext):
+    role = callback.data
     await state.update_data(role=role)
 
-    model = ROLE_MODEL_MAP_RU[role]
+    model = ROLE_MODEL_MAP_ENG[role]
     fields = await get_model_fields(model)
     await state.update_data(fields=fields)
 
-    await message.answer(
+    await callback.message.answer(
         f"Введи значения для роли '{role}' через запятую:\n" +
-        ", ".join(fields)
+        "\n".join(fields)
     )
 
     await state.set_state(CreateUserStates.entering_data)
@@ -76,7 +74,7 @@ async def enter_user_data(message: Message, state: FSMContext):
             f"❌ Неверное количество значений. Ожидалось: {len(fields)}, получено: {len(values)}."
         )
 
-    model_cls = ROLE_MODEL_MAP_RU[role]
+    model_cls = ROLE_MODEL_MAP_ENG[role]
 
     try:
         # Преобразуем значения и собираем в словарь
